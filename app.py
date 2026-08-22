@@ -1,7 +1,7 @@
 import os
 import sys
 
-
+# Patch legacy pydantic v1 imports before importing CrewAI
 import pydantic
 if "pydantic.v1" not in sys.modules:
     sys.modules["pydantic.v1"] = pydantic
@@ -18,7 +18,12 @@ st.set_page_config(
 
 st.title("🤖 CrewAI Multi-Agent YouTube Blog Post Generator (OpenRouter)")
 
-openrouter_api_key = st.sidebar.text_input("OpenRouter API Key", type="password")
+# Secret Management: Fetch from Streamlit Cloud Secrets or Sidebar
+if "OPENROUTER_API_KEY" in st.secrets:
+    openrouter_api_key = st.secrets["OPENROUTER_API_KEY"]
+else:
+    openrouter_api_key = st.sidebar.text_input("OpenRouter API Key", type="password")
+
 model_name = st.sidebar.text_input(
     "OpenRouter Model", 
     value="openrouter/openai/gpt-4o-mini"
@@ -28,22 +33,35 @@ topic_query = st.text_input("Enter Topic / Query to Research", value="AI vs ML v
 
 if st.button("🚀 Run Crew Workflow"):
     if not openrouter_api_key:
-        st.error("Please enter your OpenRouter API Key in the sidebar.")
+        st.error("Please enter your OpenRouter API Key in the sidebar or Streamlit Secrets.")
         st.stop()
 
     os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
 
     with st.spinner("Executing Task..."):
         try:
+            # 1. Instantiate OpenRouter LLM via CrewAI LLM Class
             llm = LLM(
                 model=model_name,
                 base_url="https://openrouter.ai/api/v1",
                 api_key=openrouter_api_key
             )
 
-            yt_tool = YoutubeChannelSearchTool(youtube_channel_handle=channel_handle)
+            # 2. Configure YouTube Search Tool without requiring default OpenAI embeddings
+            yt_tool = YoutubeChannelSearchTool(
+                youtube_channel_handle=channel_handle,
+                config=dict(
+                    llm=dict(
+                        provider="openrouter",
+                        config=dict(
+                            model=model_name,
+                            api_key=openrouter_api_key,
+                        ),
+                    ),
+                )
+            )
 
-            # memory=False prevents CrewAI from loading ChromaDB vector storage
+            # 3. Create Agents with max_iter=2 and memory disabled
             blog_researcher = Agent(
                 role="Blog Researcher from YouTube Videos",
                 goal=f"Get relevant video content for '{topic_query}' from YT Channel.",
@@ -68,21 +86,23 @@ if st.button("🚀 Run Crew Workflow"):
                 max_iter=2
             )
 
+            # 4. Define Tasks
             research_task = Task(
-                description=f"Identify videos on '{topic_query}' and extract info.",
-                expected_output="Summary report based on video content.",
+                description=f"Identify videos on '{topic_query}' and extract key content.",
+                expected_output="Detailed summary report based on video content.",
                 tools=[yt_tool],
                 agent=blog_researcher
             )
 
             write_task = Task(
                 description=f"Draft a markdown blog post on '{topic_query}'.",
-                expected_output="A blog post in markdown format.",
+                expected_output="A full blog post in markdown format.",
                 tools=[yt_tool],
                 agent=blog_writer,
                 output_file="blog_post.md"
             )
 
+            # 5. Assemble Crew with max_iter=2 and memory disabled
             crew = Crew(
                 agents=[blog_researcher, blog_writer],
                 tasks=[research_task, write_task],
@@ -94,8 +114,15 @@ if st.button("🚀 Run Crew Workflow"):
 
             result = crew.kickoff(inputs={"topic": topic_query})
 
-            st.success("Completed!")
+            st.success("Workflow Executed Successfully!")
             st.markdown(result.raw)
 
+            st.download_button(
+                label="📥 Download Markdown Post",
+                data=str(result.raw),
+                file_name="generated_blog_post.md",
+                mime="text/markdown"
+            )
+
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"Execution Error: {str(e)}")
