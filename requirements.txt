@@ -2,4 +2,5 @@ streamlit
 crewai
 crewai-tools
 python-dotenv
-pydantic>=2.0.0
+pydantic>=2.4.2
+pydantic-settings>=2.0.0
