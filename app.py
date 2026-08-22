@@ -1,4 +1,11 @@
 import os
+import sys
+
+
+import pydantic
+if "pydantic.v1" not in sys.modules:
+    sys.modules["pydantic.v1"] = pydantic
+
 import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import YoutubeChannelSearchTool
@@ -14,7 +21,7 @@ st.title("🤖 CrewAI Multi-Agent YouTube Blog Post Generator (OpenRouter)")
 openrouter_api_key = st.sidebar.text_input("OpenRouter API Key", type="password")
 model_name = st.sidebar.text_input(
     "OpenRouter Model", 
-    value="openrouter/openai/gpt-4o-mini"  # e.g. openrouter/anthropic/claude-3.5-sonnet or openrouter/deepseek/deepseek-r1
+    value="openrouter/openai/gpt-4o-mini"
 )
 channel_handle = st.sidebar.text_input("YouTube Channel Handle", value="@krishnaik06")
 topic_query = st.text_input("Enter Topic / Query to Research", value="AI vs ML vs Data Science")
@@ -28,7 +35,6 @@ if st.button("🚀 Run Crew Workflow"):
 
     with st.spinner("Executing Task..."):
         try:
-            # Initialize OpenRouter LLM via CrewAI LLM class
             llm = LLM(
                 model=model_name,
                 base_url="https://openrouter.ai/api/v1",
@@ -37,11 +43,12 @@ if st.button("🚀 Run Crew Workflow"):
 
             yt_tool = YoutubeChannelSearchTool(youtube_channel_handle=channel_handle)
 
+            # memory=False prevents CrewAI from loading ChromaDB vector storage
             blog_researcher = Agent(
                 role="Blog Researcher from YouTube Videos",
                 goal=f"Get relevant video content for '{topic_query}' from YT Channel.",
                 verbose=True,
-                memory=False,  # Set memory=False when using non-OpenAI models to avoid default OpenAI embedding calls
+                memory=False,
                 backstory="An expert in understanding videos in AI and data science.",
                 tools=[yt_tool],
                 allow_delegation=True,
@@ -81,6 +88,7 @@ if st.button("🚀 Run Crew Workflow"):
                 tasks=[research_task, write_task],
                 process=Process.sequential,
                 verbose=True,
+                memory=False,
                 max_iter=2
             )
 
