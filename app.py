@@ -25,7 +25,7 @@ MODEL_NAME = "openrouter/openai/gpt-4o-mini"
 # User inputs full YouTube Channel URL directly
 channel_url_input = st.sidebar.text_input(
     "Full YouTube Channel URL", 
-    placeholder="https://www.youtube.com/@paurigarhwal"
+    placeholder="https://www.youtube.com/"
 ).strip()
 
 topic_query = st.text_input("Enter Topic / Query to Research", value="Enter your query")
