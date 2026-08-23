@@ -18,11 +18,12 @@ if "OPENROUTER_API_KEY" in st.secrets:
 else:
     openrouter_api_key = st.sidebar.text_input("OpenRouter API Key", type="password")
 
-model_name = st.sidebar.text_input(
-    "OpenRouter Model", 
-    value="openrouter/openai/gpt-4o-mini"
-)
-channel_handle = st.sidebar.text_input("YouTube Channel Handle", value="@krishnaik06")
+# Fixed model configuration (hidden from UI)
+MODEL_NAME = "openrouter/openai/gpt-4o-mini"
+
+# Channel handle input without default value
+channel_input = st.sidebar.text_input("YouTube Channel Handle (e.g., @krishnaik06)").strip()
+
 topic_query = st.text_input("Enter Topic / Query to Research", value="AI vs ML vs Data Science")
 
 # 3. Execution Logic
@@ -31,28 +32,33 @@ if st.button("🚀 Run Crew Workflow"):
         st.error("Please enter your OpenRouter API Key in the sidebar or Streamlit Secrets.")
         st.stop()
 
-    # Set environment variables for OpenRouter / LiteLLM integration
+    if not channel_input:
+        st.error("Please enter a YouTube Channel Handle in the sidebar.")
+        st.stop()
+
+    # Format handle with @ prefix if missing
+    channel_handle = channel_input if channel_input.startswith("@") else f"@{channel_input}"
+
+    # Set environment variables
     os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
-    
-    # Dummy key to bypass legacy Pydantic validation checks inside Embedchain
-    os.environ["OPENAI_API_KEY"] = "NA"
+    os.environ["OPENAI_API_KEY"] = "NA"  # Bypass legacy Pydantic/Embedchain validations
 
     with st.spinner("Executing Task..."):
         try:
             # Instantiate Modern CrewAI LLM Class
             llm = LLM(
-                model=model_name,
+                model=MODEL_NAME,
                 api_key=openrouter_api_key
             )
 
-            # Initialize YouTube Search Tool with Embedder Config
+            # Initialize YouTube Search Tool dynamically with user's input
             yt_tool = YoutubeChannelSearchTool(
                 youtube_channel_handle=channel_handle,
                 config=dict(
                     llm=dict(
                         provider="openrouter",
                         config=dict(
-                            model=model_name,
+                            model=MODEL_NAME,
                             api_key=openrouter_api_key,
                         ),
                     ),
