@@ -3,6 +3,7 @@ import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import YoutubeChannelSearchTool
 
+# 1. Page Configuration
 st.set_page_config(
     page_title="Multi-Agent YouTube Content Generator",
     page_icon="🤖",
@@ -11,7 +12,7 @@ st.set_page_config(
 
 st.title("🤖 CrewAI Multi-Agent YouTube Blog Post Generator (OpenRouter)")
 
-# Secret Management: Fetch from Streamlit Cloud Secrets or Sidebar
+# 2. Secret & Input Management
 if "OPENROUTER_API_KEY" in st.secrets:
     openrouter_api_key = st.secrets["OPENROUTER_API_KEY"]
 else:
@@ -24,67 +25,69 @@ model_name = st.sidebar.text_input(
 channel_handle = st.sidebar.text_input("YouTube Channel Handle", value="@krishnaik06")
 topic_query = st.text_input("Enter Topic / Query to Research", value="AI vs ML vs Data Science")
 
+# 3. Execution Logic
 if st.button("🚀 Run Crew Workflow"):
     if not openrouter_api_key:
         st.error("Please enter your OpenRouter API Key in the sidebar or Streamlit Secrets.")
         st.stop()
 
+    # Set environment variables for OpenRouter / LiteLLM integration
     os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
 
     with st.spinner("Executing Task..."):
         try:
-            # 1. Instantiate OpenRouter LLM via modern CrewAI LLM Class
+            # Instantiate Modern CrewAI LLM Class
             llm = LLM(
                 model=model_name,
                 api_key=openrouter_api_key
             )
 
-            # 2. Configure YouTube Search Tool
+            # Initialize YouTube Search Tool
             yt_tool = YoutubeChannelSearchTool(
                 youtube_channel_handle=channel_handle
             )
 
-            # 3. Create Agents
+            # Define Agents
             blog_researcher = Agent(
                 role="Blog Researcher from YouTube Videos",
-                goal=f"Get relevant video content for '{topic_query}' from YT Channel.",
-                verbose=True,
-                memory=False,
-                backstory="An expert in understanding videos in AI and data science.",
+                goal=f"Extract key video content for topic '{topic_query}' from YouTube channel {channel_handle}.",
+                backstory="An expert researcher specializing in analyzing YouTube video transcripts and technical content.",
                 tools=[yt_tool],
                 allow_delegation=False,
                 llm=llm,
+                verbose=True,
+                memory=False,
                 max_iter=2
             )
 
             blog_writer = Agent(
                 role="Blog Writer",
-                goal=f"Narrate compelling stories on '{topic_query}'.",
-                verbose=True,
-                memory=False,
-                backstory="Crafts engaging narratives that simplify complex topics.",
+                goal=f"Draft a compelling, well-formatted blog post on '{topic_query}' based on research.",
+                backstory="A skilled writer who crafts engaging technical blog posts from raw research summaries.",
                 tools=[],
                 allow_delegation=False,
                 llm=llm,
+                verbose=True,
+                memory=False,
                 max_iter=2
             )
 
-            # 4. Define Tasks
+            # Define Tasks
             research_task = Task(
-                description=f"Identify videos on '{topic_query}' and extract key content.",
-                expected_output="Detailed summary report based on video content.",
+                description=f"Search the YouTube channel {channel_handle} for videos related to '{topic_query}' and synthesize main points.",
+                expected_output="A detailed summary of key points and facts found in video content.",
                 tools=[yt_tool],
                 agent=blog_researcher
             )
 
             write_task = Task(
-                description=f"Draft a markdown blog post on '{topic_query}'.",
-                expected_output="A full blog post in markdown format.",
+                description=f"Using the research provided, write a comprehensive markdown blog post about '{topic_query}'.",
+                expected_output="A complete, publication-ready blog post in markdown format.",
                 agent=blog_writer,
                 output_file="blog_post.md"
             )
 
-            # 5. Assemble Crew
+            # Assemble and Run Crew
             crew = Crew(
                 agents=[blog_researcher, blog_writer],
                 tasks=[research_task, write_task],
@@ -93,9 +96,9 @@ if st.button("🚀 Run Crew Workflow"):
                 memory=False
             )
 
-            # Kick off workflow
             result = crew.kickoff(inputs={"topic": topic_query})
 
+            # Render Results
             st.success("Workflow Executed Successfully!")
             st.markdown(result.raw)
 
