@@ -1,11 +1,4 @@
 import os
-import sys
-
-# Patch legacy pydantic v1 imports before importing CrewAI
-import pydantic
-if "pydantic.v1" not in sys.modules:
-    sys.modules["pydantic.v1"] = pydantic
-
 import streamlit as st
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai_tools import YoutubeChannelSearchTool
@@ -40,28 +33,18 @@ if st.button("🚀 Run Crew Workflow"):
 
     with st.spinner("Executing Task..."):
         try:
-            # 1. Instantiate OpenRouter LLM via CrewAI LLM Class
+            # 1. Instantiate OpenRouter LLM via modern CrewAI LLM Class
             llm = LLM(
                 model=model_name,
-                base_url="https://openrouter.ai/api/v1",
                 api_key=openrouter_api_key
             )
 
-            # 2. Configure YouTube Search Tool without requiring default OpenAI embeddings
+            # 2. Configure YouTube Search Tool
             yt_tool = YoutubeChannelSearchTool(
-                youtube_channel_handle=channel_handle,
-                config=dict(
-                    llm=dict(
-                        provider="openrouter",
-                        config=dict(
-                            model=model_name,
-                            api_key=openrouter_api_key,
-                        ),
-                    ),
-                )
+                youtube_channel_handle=channel_handle
             )
 
-            # 3. Create Agents with max_iter=2 and memory disabled
+            # 3. Create Agents
             blog_researcher = Agent(
                 role="Blog Researcher from YouTube Videos",
                 goal=f"Get relevant video content for '{topic_query}' from YT Channel.",
@@ -69,7 +52,7 @@ if st.button("🚀 Run Crew Workflow"):
                 memory=False,
                 backstory="An expert in understanding videos in AI and data science.",
                 tools=[yt_tool],
-                allow_delegation=True,
+                allow_delegation=False,
                 llm=llm,
                 max_iter=2
             )
@@ -80,7 +63,7 @@ if st.button("🚀 Run Crew Workflow"):
                 verbose=True,
                 memory=False,
                 backstory="Crafts engaging narratives that simplify complex topics.",
-                tools=[yt_tool],
+                tools=[],
                 allow_delegation=False,
                 llm=llm,
                 max_iter=2
@@ -97,21 +80,20 @@ if st.button("🚀 Run Crew Workflow"):
             write_task = Task(
                 description=f"Draft a markdown blog post on '{topic_query}'.",
                 expected_output="A full blog post in markdown format.",
-                tools=[yt_tool],
                 agent=blog_writer,
                 output_file="blog_post.md"
             )
 
-            # 5. Assemble Crew with max_iter=2 and memory disabled
+            # 5. Assemble Crew
             crew = Crew(
                 agents=[blog_researcher, blog_writer],
                 tasks=[research_task, write_task],
                 process=Process.sequential,
                 verbose=True,
-                memory=False,
-                max_iter=2
+                memory=False
             )
 
+            # Kick off workflow
             result = crew.kickoff(inputs={"topic": topic_query})
 
             st.success("Workflow Executed Successfully!")
