@@ -28,7 +28,7 @@ channel_url_input = st.sidebar.text_input(
     placeholder="https://www.youtube.com/"
 ).strip()
 
-topic_query = st.text_input("Enter Topic / Query to Research", value="Enter your query")
+topic_query = st.text_input("Enter Topic / Query to Research", value="")
 
 # 3. Native Custom Tool for YouTube Transcripts (Fallback)
 @tool("Fetch YouTube Transcript")
