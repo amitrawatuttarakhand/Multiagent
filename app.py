@@ -33,6 +33,9 @@ if st.button("🚀 Run Crew Workflow"):
 
     # Set environment variables for OpenRouter / LiteLLM integration
     os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
+    
+    # Dummy key to bypass legacy Pydantic validation checks inside Embedchain
+    os.environ["OPENAI_API_KEY"] = "NA"
 
     with st.spinner("Executing Task..."):
         try:
@@ -42,9 +45,24 @@ if st.button("🚀 Run Crew Workflow"):
                 api_key=openrouter_api_key
             )
 
-            # Initialize YouTube Search Tool
+            # Initialize YouTube Search Tool with Embedder Config
             yt_tool = YoutubeChannelSearchTool(
-                youtube_channel_handle=channel_handle
+                youtube_channel_handle=channel_handle,
+                config=dict(
+                    llm=dict(
+                        provider="openrouter",
+                        config=dict(
+                            model=model_name,
+                            api_key=openrouter_api_key,
+                        ),
+                    ),
+                    embedder=dict(
+                        provider="huggingface",
+                        config=dict(
+                            model="sentence-transformers/all-MiniLM-L6-v2",
+                        ),
+                    ),
+                )
             )
 
             # Define Agents
