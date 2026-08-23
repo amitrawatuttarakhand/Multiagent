@@ -7,8 +7,8 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="Multi-Agent YouTube Content Generator",
-    page_icon="🤖",
+    page_title="▶️ YouTube Content Generator",
+    page_icon="▶️",
     layout="wide"
 )
 
