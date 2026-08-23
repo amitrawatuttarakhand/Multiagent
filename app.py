@@ -12,7 +12,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🤖 CrewAI Multi-Agent YouTube Blog Post Generator (OpenRouter)")
+st.title("YouTube Blog Post Generator")
 
 # 2. Secret & Input Management
 if "OPENROUTER_API_KEY" in st.secrets:
