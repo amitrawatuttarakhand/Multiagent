@@ -22,10 +22,15 @@ else:
 
 MODEL_NAME = "openrouter/openai/gpt-4o-mini"
 
-channel_input = st.sidebar.text_input("YouTube Channel Handle or URL (e.g., @paurigarhwal)").strip()
+# User inputs full YouTube Channel URL directly
+channel_url_input = st.sidebar.text_input(
+    "Full YouTube Channel URL", 
+    placeholder="https://www.youtube.com/@paurigarhwal"
+).strip()
+
 topic_query = st.text_input("Enter Topic / Query to Research", value="Enter your query")
 
-# 3. Custom Native CrewAI Tool for YouTube Transcripts
+# 3. Native Custom Tool for YouTube Transcripts (Fallback)
 @tool("Fetch YouTube Transcript")
 def fetch_youtube_transcript(video_id_or_url: str) -> str:
     """
@@ -33,28 +38,28 @@ def fetch_youtube_transcript(video_id_or_url: str) -> str:
     Use this tool to get transcript text from a video for analysis.
     """
     try:
-        # Extract 11-character video ID if a full URL is passed
         video_id_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", video_id_or_url)
         video_id = video_id_match.group(1) if video_id_match else video_id_or_url
 
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         full_text = " ".join([entry['text'] for entry in transcript_list])
         
-        # Limit length to avoid exceeding context window
         return full_text[:4000]
     except Exception as e:
         return f"Could not fetch transcript for {video_id_or_url}: {str(e)}"
 
 
-# 4. Alternative Standard YoutubeChannelSearchTool with Full URL Formatting
-def get_channel_url(user_input: str) -> str:
-    """Ensures input is formatted as a full YouTube URL for Embedchain compatibility."""
-    user_input = user_input.strip()
-    if user_input.startswith("http://") or user_input.startswith("https://"):
-        return user_input
+# 4. Helper Function to Format Full YouTube Channel URL
+def clean_channel_url(url_input: str) -> str:
+    """Ensures input is a clean, properly formatted YouTube channel URL."""
+    url = url_input.strip()
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
     
-    handle = user_input if user_input.startswith("@") else f"@{user_input}"
-    return f"https://www.youtube.com/{handle}"
+    if url.startswith("@"):
+        return f"https://www.youtube.com/{url}"
+    
+    return f"https://www.youtube.com/@{url}"
 
 
 # 5. Execution Logic
@@ -63,27 +68,28 @@ if st.button("🚀 Run Crew Workflow"):
         st.error("Please enter your OpenRouter API Key in the sidebar or Streamlit Secrets.")
         st.stop()
 
-    if not channel_input:
-        st.error("Please enter a YouTube Channel Handle or URL in the sidebar.")
+    if not channel_url_input:
+        st.error("Please enter a full YouTube Channel URL in the sidebar.")
         st.stop()
 
-    formatted_channel_url = get_channel_url(channel_input)
+    full_channel_url = clean_channel_url(channel_url_input)
+    
     os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
     os.environ["OPENAI_API_KEY"] = "NA"
 
     with st.spinner("Executing Task..."):
         try:
-            # Instantiate CrewAI LLM
+            # Instantiate Modern CrewAI LLM Class
             llm = LLM(
                 model=MODEL_NAME,
                 api_key=openrouter_api_key
             )
 
-            # Initialize YoutubeChannelSearchTool with full valid URL
+            # Initialize YoutubeChannelSearchTool with youtube_channel_url parameter
             from crewai_tools import YoutubeChannelSearchTool
             
             yt_tool = YoutubeChannelSearchTool(
-                youtube_channel_handle=formatted_channel_url,
+                youtube_channel_url=full_channel_url,
                 config=dict(
                     llm=dict(
                         provider="openrouter",
@@ -104,7 +110,7 @@ if st.button("🚀 Run Crew Workflow"):
             # Define Agents
             blog_researcher = Agent(
                 role="Blog Researcher from YouTube Videos",
-                goal=f"Extract key video content for topic '{topic_query}' from channel '{formatted_channel_url}'.",
+                goal=f"Extract key video content for topic '{topic_query}' from channel URL '{full_channel_url}'.",
                 backstory="An expert researcher specializing in analyzing YouTube content and technical transcripts.",
                 tools=[yt_tool, fetch_youtube_transcript],
                 allow_delegation=False,
@@ -128,7 +134,7 @@ if st.button("🚀 Run Crew Workflow"):
 
             # Define Tasks
             research_task = Task(
-                description=f"Search YouTube channel at {formatted_channel_url} for videos about '{topic_query}' and summarize main insights.",
+                description=f"Search YouTube channel at {full_channel_url} for videos about '{topic_query}' and summarize main insights.",
                 expected_output="A detailed summary of key points and facts found in video content.",
                 tools=[yt_tool, fetch_youtube_transcript],
                 agent=blog_researcher
